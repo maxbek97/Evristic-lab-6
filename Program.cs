@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System;
+using System.Text;
 
 public class Gen
 {
@@ -250,19 +251,41 @@ public class Gen_algorith
                 if (j != i) sharp_osob.Add(Ch_i[j % Generation_coef[num_o_el_list]]);
             }
 
-            //Взять двух случайных левых родителя, и получить из них 
-            var idx = rnd.Next(sharp_osob.Count);
-
-
             Console.WriteLine($"Генерируется {i + 1}я особь");
+            //Взять двух случайных левых родителя, и получить из них 
+            var idx = Chose_strongest_second_parent(sharp_osob);
+
+
             new_generation.Add(cross_over(Ch_i[i % Generation_coef[num_o_el_list]], sharp_osob[idx]));
         }
 
+        if (Ch_i.Count > N_chr * Generation_coef[num_o_el_list]!) Console.Write($"Оставляем {N_chr * Generation_coef[num_o_el_list]!} особей\n");
         //Возвращает Список из N_chr * на переданный коэффициент лучших особей в исходном порядке 
         return new_generation.OrderBy(x => get_feno_one(x, false))
             .Take(N_chr * Generation_coef[num_o_el_list]!)
             .OrderBy(x => new_generation.IndexOf(x))
             .ToList();
+    }
+
+    private int Chose_strongest_second_parent(List<List<Gen>> left_parents_list)
+    {
+        Console.WriteLine("Производится отбор второго родителя");
+        var parent_idx = get2nums_rnd(left_parents_list.Count);
+        int strongest_parent_idx = get_feno_one(left_parents_list[parent_idx.Item1]) > get_feno_one(left_parents_list[parent_idx.Item2]) ? parent_idx.Item2 : parent_idx.Item1;
+        return strongest_parent_idx;
+    }
+
+    public (int, int) get2nums_rnd(int size)
+    {
+        int index1 = rnd.Next(size);
+        // Генерируем второй случайный индекс, отличный от первого
+        int index2;
+        do
+        {
+            index2 = rnd.Next(size);
+        } while (index2 == index1);
+
+        return (index1, index2);
     }
 
     private List<Gen> cross_over(List<Gen> parent_1, List<Gen> parent_2)
