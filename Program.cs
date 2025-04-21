@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Reflection;
 using System.Text;
 
 public class Gen
@@ -164,7 +165,6 @@ public class Gen_algorith
             }
             else
             {
-
                 feno[intervalIndex].Add(el.task);
             }
         }
@@ -243,20 +243,10 @@ public class Gen_algorith
         //Условие, что лучший элемент повторился N_lim раз
         for (int i = 0; i < N_chr * Generation_coef[num_o_el_list]; i++)
         {
-            //Заполнить список, Для выбора родителя для кроссинговера
-            List<List<Gen>> sharp_osob = new List<List<Gen>>();
-            for (int j = 0; j < N_chr * Generation_coef[num_o_el_list]; j++)
-            {
-                Console.WriteLine(Ch_i.Count + " "+ j % Generation_coef[num_o_el_list]);
-                if (j != i) sharp_osob.Add(Ch_i[j % Generation_coef[num_o_el_list]]);
-            }
-
             Console.WriteLine($"Генерируется {i + 1}я особь");
             //Взять двух случайных левых родителя, и получить из них 
-            var idx = Chose_strongest_second_parent(sharp_osob);
-
-
-            new_generation.Add(cross_over(Ch_i[i % Generation_coef[num_o_el_list]], sharp_osob[idx]));
+            var idx = Chose_strongest_second_parent(Ch_i, i);
+            new_generation.Add(cross_over(Ch_i[i % Generation_coef[num_o_el_list]], Ch_i[idx]));
         }
 
         if (Ch_i.Count > N_chr * Generation_coef[num_o_el_list]!) Console.Write($"Оставляем {N_chr * Generation_coef[num_o_el_list]!} особей\n");
@@ -267,25 +257,37 @@ public class Gen_algorith
             .ToList();
     }
 
-    private int Chose_strongest_second_parent(List<List<Gen>> left_parents_list)
+    private int Chose_strongest_second_parent(List<List<Gen>> left_parents_list, int current_idx_parent)
     {
-        Console.WriteLine("Производится отбор второго родителя");
-        var parent_idx = get2nums_rnd(left_parents_list.Count);
-        int strongest_parent_idx = get_feno_one(left_parents_list[parent_idx.Item1]) > get_feno_one(left_parents_list[parent_idx.Item2]) ? parent_idx.Item2 : parent_idx.Item1;
+        Console.WriteLine("Производится отбор второго правого родителя\n");
+        var parent_idx = get2nums_rnd(0, left_parents_list.Count, new List<int>([current_idx_parent]));
+        Console.WriteLine("Первый кандидат");
+        int pheno_fisrt = get_feno_one(left_parents_list[parent_idx[0]]);
+
+        Console.WriteLine("Второй кандидат");
+        int pheno_second = get_feno_one(left_parents_list[parent_idx[1]]);
+        int strongest_parent_idx =  pheno_fisrt > pheno_second ? parent_idx[1] : parent_idx[0];
+        Console.WriteLine($"Победил в итоге родитель с уровнем приспособленности = {get_feno_one(left_parents_list[strongest_parent_idx], false)} под номером {strongest_parent_idx}");
         return strongest_parent_idx;
     }
 
-    public (int, int) get2nums_rnd(int size)
+    public List<int> get2nums_rnd(int start, int size, List<int> uncorrect_values = null)
     {
-        int index1 = rnd.Next(size);
+        if (uncorrect_values == null) {
+            uncorrect_values = new List<int> { -1 };
+        }
+        int index1;
+        do {
+            index1 = rnd.Next(size);
+            } while (uncorrect_values.Contains(index1));
         // Генерируем второй случайный индекс, отличный от первого
         int index2;
         do
         {
             index2 = rnd.Next(size);
-        } while (index2 == index1);
+        } while (index2 == index1 || uncorrect_values.Contains(index2));
 
-        return (index1, index2);
+        return new List<int>([index1, index2]);
     }
 
     private List<Gen> cross_over(List<Gen> parent_1, List<Gen> parent_2)
@@ -294,24 +296,25 @@ public class Gen_algorith
         double p_current_cross = rnd.NextDouble();
         if (p_current_cross < P_cross)
         {
+            
             //Вывести генотип двух участвующих родителей
             Console.WriteLine("Родитель 1");
             print_counting_geno_one(parent_1);
-            int feno_parent = get_feno_one(parent_1, true);
+            int feno_parent_1 = get_feno_one(parent_1, true);
 
             Console.WriteLine("Родитель 2");
             print_counting_geno_one(parent_2);
-            get_feno_one(parent_2, true);
+            int feno_parent_2 = get_feno_one(parent_2, true);
 
-            //Выбираем точку разделения случайно
-            int divide_point = rnd.Next(1, matrix.M);
-            Console.WriteLine("Происходит скрещивание. Точка разделения - " + divide_point);
+            //Выбираем две точки разделения
+            var divide_points = get2nums_rnd(1, matrix.M).Order().ToList();
+            Console.WriteLine($"Происходит скрещивание. Точки разделения: {divide_points[0]}, {divide_points[1]}");
             //И порождаем два потомка
             List<Gen> potom1 = new List<Gen>();
             List<Gen> potom2 = new List<Gen>();
             for (int i = 0; i < matrix.M; i++)
             {
-                if (i < divide_point)
+                if (i < divide_points[0] || i > divide_points[1])
                 {
                     potom1.Add(parent_1[i]);
                     potom2.Add(parent_2[i]);
@@ -345,29 +348,33 @@ public class Gen_algorith
             int feno_second = get_feno_one(potom2_mut);
 
             List<(int, List<Gen>)> best_variant =
-            [ (feno_parent, parent_1),
+            [   (feno_parent_1, parent_1),
+                (feno_parent_2, parent_2),
                 (feno_first, potom1_mut),
-                (feno_second, potom2_mut)
+                (feno_second, potom2_mut),
             ];
-            Console.WriteLine($"Левый родитель - {feno_parent}, Правый родитель - {get_feno_one(parent_2, false)}, Потомок 1 - {feno_first}, Потомок 2 - {feno_second}");
+            Console.WriteLine($"Левый родитель - {feno_parent_1}, Правый родитель - {feno_parent_2}, Потомок 1 - {feno_first}, Потомок 2 - {feno_second}");
             int minIndex = Enumerable.Range(0, best_variant.Count)
                          .MinBy(i => best_variant[i].Item1);
 
             switch (minIndex)
             {
-                case 1:
+                case 0:
+                    Console.WriteLine("В следующее поколение переходит левый родитель");
+                    return parent_1;
+                case 2:
                     {
                         Console.WriteLine("В следующее поколение переходит 1й потомок");
                         return potom1_mut;
                     }
-                case 2:
+                case 3:
                     {
                         Console.WriteLine("В следующее поколение переходит 2й потомок");
                         return potom2_mut;
                     }
                 default:
                     {
-                        Console.WriteLine("В следующее поколение переходит родитель");
+                        Console.WriteLine("В следующее поколение переходит правый родитель");
                         return parent_1;
                     }
             }
@@ -414,9 +421,11 @@ public class Gen_algorith
             //ВЫбираем случайную хромосому и инвертируем
             byte number = (byte)new_potom[gen_idx].gen;
 
-            int index = rnd.Next(8);
-            number ^= (byte)(1 << index);
-
+            var idx_toChange = get2nums_rnd(0, 8);
+            foreach (var i in idx_toChange)
+            {
+                number ^= (byte)(1 << i);
+            }
             Console.WriteLine(number + " = " + Convert.ToString(number, 2).PadLeft(8, '0'));
             new_potom[gen_idx].gen = number;
             get_feno_one(potom, false);
@@ -527,7 +536,7 @@ class lab6
 
         var test = new Matrix(4, 11, 10, 20);
         test.print_matrix();
-        var test1 = new Gen_algorith(5, 10, 1, 1, test, new List<int>([1, 2, 3]));
+        var test1 = new Gen_algorith(5, 10, 1, 1, test, new List<int>([1, 3, 5]));
         test1.main_algorithm();
 
     }
