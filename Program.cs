@@ -238,7 +238,15 @@ public class Gen_algorith
     }
     private List<List<Gen>> generate_new_gen(int num_o_el_list)
     {
-        //Значит разделяем список на родителей и дети. и потом их объединяем в один, получая новое поколение
+        //Тут немного обратная логика, мы генерируем на предыдущем поколении много особей, а при генерации текущей, если нужно сгенерировать меньше особей, список предварительно сортируется и отбирается количество особей необходимых для генерации.
+        if (N_chr * Generation_coef[num_o_el_list] < Ch_i.Count)
+        {
+            Console.Write($"Оставляем {N_chr * Generation_coef[num_o_el_list]!} особей\n");
+            Ch_i = Ch_i.OrderBy(x => get_feno_one(x, false))
+                .Take(N_chr * Generation_coef[num_o_el_list])
+                .ToList();
+            print_F_ch_i(get_vector_survive(Ch_i));
+        }
         List<List<Gen>> new_generation = new List<List<Gen>>();
         //Условие, что лучший элемент повторился N_lim раз
         for (int i = 0; i < N_chr * Generation_coef[num_o_el_list]; i++)
@@ -249,22 +257,18 @@ public class Gen_algorith
             new_generation.Add(cross_over(Ch_i[i % Generation_coef[num_o_el_list]], Ch_i[idx]));
         }
 
-        if (Ch_i.Count > N_chr * Generation_coef[num_o_el_list]!) Console.Write($"Оставляем {N_chr * Generation_coef[num_o_el_list]!} особей\n");
         //Возвращает Список из N_chr * на переданный коэффициент лучших особей в исходном порядке 
-        return new_generation.OrderBy(x => get_feno_one(x, false))
-            .Take(N_chr * Generation_coef[num_o_el_list]!)
-            .OrderBy(x => new_generation.IndexOf(x))
-            .ToList();
+        return new_generation;
     }
 
     private int Chose_strongest_second_parent(List<List<Gen>> left_parents_list, int current_idx_parent)
     {
         Console.WriteLine("Производится отбор второго правого родителя\n");
         var parent_idx = get2nums_rnd(0, left_parents_list.Count, new List<int>([current_idx_parent]));
-        Console.WriteLine("Первый кандидат");
+        Console.WriteLine("Первый кандидат c индексом " + parent_idx[0]);
         int pheno_fisrt = get_feno_one(left_parents_list[parent_idx[0]]);
 
-        Console.WriteLine("Второй кандидат");
+        Console.WriteLine("Второй кандидат с индексом " + parent_idx[1]);
         int pheno_second = get_feno_one(left_parents_list[parent_idx[1]]);
         int strongest_parent_idx =  pheno_fisrt > pheno_second ? parent_idx[1] : parent_idx[0];
         Console.WriteLine($"Победил в итоге родитель с уровнем приспособленности = {get_feno_one(left_parents_list[strongest_parent_idx], false)} под номером {strongest_parent_idx}");
@@ -351,7 +355,7 @@ public class Gen_algorith
             [   (feno_parent_1, parent_1),
                 (feno_parent_2, parent_2),
                 (feno_first, potom1_mut),
-                (feno_second, potom2_mut),
+                (feno_second, potom2_mut)
             ];
             Console.WriteLine($"Левый родитель - {feno_parent_1}, Правый родитель - {feno_parent_2}, Потомок 1 - {feno_first}, Потомок 2 - {feno_second}");
             int minIndex = Enumerable.Range(0, best_variant.Count)
@@ -422,6 +426,7 @@ public class Gen_algorith
             byte number = (byte)new_potom[gen_idx].gen;
 
             var idx_toChange = get2nums_rnd(0, 8);
+            Console.WriteLine($"Индексы меняющихся битов: {idx_toChange[0]} и {idx_toChange[1]}");
             foreach (var i in idx_toChange)
             {
                 number ^= (byte)(1 << i);
