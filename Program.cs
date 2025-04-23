@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Reflection;
+using System.Reflection.Metadata.Ecma335;
 using System.Text;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 public class Gen
 {
@@ -145,7 +147,7 @@ public class Gen_algorith
         Console.WriteLine();
     }
 
-    private int get_feno_one(List<Gen> osob, Boolean need_to_print = true)
+    private int get_feno_one(List<Gen> osob, bool need_to_print = true)
     {
         int interval_len = 255 / matrix.N;
         //Для каждой особи генерируем двумерную матрицу фенотипа
@@ -238,27 +240,47 @@ public class Gen_algorith
     }
     private List<List<Gen>> generate_new_gen(int num_o_el_list)
     {
-        //Тут немного обратная логика, мы генерируем на предыдущем поколении много особей, а при генерации текущей, если нужно сгенерировать меньше особей, список предварительно сортируется и отбирается количество особей необходимых для генерации.
-        if (N_chr * Generation_coef[num_o_el_list] < Ch_i.Count)
+        var rem = show_dead_and_alive(Ch_i);
+        List<List<Gen>> new_Ch_i = new List<List<Gen>>();
+        foreach(var i in rem)
         {
-            Console.Write($"Оставляем {N_chr * Generation_coef[num_o_el_list]!} особей\n");
-            Ch_i = Ch_i.OrderBy(x => get_feno_one(x, false))
-                .Take(N_chr * Generation_coef[num_o_el_list])
-                .ToList();
-            print_F_ch_i(get_vector_survive(Ch_i));
+            new_Ch_i.Add(Ch_i[i]);
         }
-        List<List<Gen>> new_generation = new List<List<Gen>>();
+        Ch_i = new_Ch_i;
+        print_F_ch_i(get_vector_survive(Ch_i));
+        List<List<Gen>> new_generation = new List<List<Gen>>(Ch_i);
         //Условие, что лучший элемент повторился N_lim раз
-        for (int i = 0; i < N_chr * Generation_coef[num_o_el_list]; i++)
+        while (new_generation.Count < N_chr * Generation_coef[num_o_el_list])
         {
-            Console.WriteLine($"Генерируется {i + 1}я особь");
-            //Взять двух случайных левых родителя, и получить из них 
-            var idx = Chose_strongest_second_parent(Ch_i, i);
-            new_generation.Add(cross_over(Ch_i[i % Generation_coef[num_o_el_list]], Ch_i[idx]));
+            for (int i = 0; i < N_chr; i++)
+            {
+                Console.WriteLine($"Генерируется {new_generation.Count + i + 1}я особь");
+                //Взять двух случайных левых родителя, и получить из них 
+                var idx = Chose_strongest_second_parent(Ch_i, i);
+                new_generation.Add(cross_over(Ch_i[i % Generation_coef[num_o_el_list]], Ch_i[idx]));
+            }
         }
 
         //Возвращает Список из N_chr * на переданный коэффициент лучших особей в исходном порядке 
-        return new_generation;
+        return new_generation
+            .Take(N_chr * Generation_coef[num_o_el_list])
+            .ToList(); ;
+    }
+
+    private List<int> show_dead_and_alive(List<List<Gen>> new_generation)
+    {
+        List<int> indices = Enumerable.Range(0, new_generation.Count).ToList();
+        indices.Sort((i1, i2) => get_feno_one(new_generation[i1], false).CompareTo(get_feno_one(new_generation[i2], false)));
+        List<int> minIndices = indices.Take(N_chr).ToList();
+        for (int i = 0; i < new_generation.Count; i++)
+        {
+            Console.Write($"Особь #{i + 1} с приспособленностью {get_feno_one(new_generation[i], false)}");
+            if (minIndices.Contains(i)) {
+                Console.Write(" Остается\n");
+            }
+            else { Console.Write(" Отсеивается\n"); }
+        }
+        return minIndices;
     }
 
     private int Chose_strongest_second_parent(List<List<Gen>> left_parents_list, int current_idx_parent)
@@ -270,7 +292,8 @@ public class Gen_algorith
 
         Console.WriteLine("Второй кандидат с индексом " + parent_idx[1]);
         int pheno_second = get_feno_one(left_parents_list[parent_idx[1]]);
-        int strongest_parent_idx =  pheno_fisrt > pheno_second ? parent_idx[1] : parent_idx[0];
+        int strongest_parent_idx =  pheno_fisrt > pheno_second ? parent_idx[1]  : parent_idx[0];
+        Console.WriteLine("");
         Console.WriteLine($"Победил в итоге родитель с уровнем приспособленности = {get_feno_one(left_parents_list[strongest_parent_idx], false)} под номером {strongest_parent_idx}");
         return strongest_parent_idx;
     }
@@ -343,9 +366,8 @@ public class Gen_algorith
             print_counting_geno_one(potom1_mut);
             int feno_first = get_feno_one(potom1_mut);
 
-
             Console.WriteLine("Потомок 2 до возможной мутации");
-            get_feno_one(potom2);
+            int start_feno_second = get_feno_one(potom2);
             var potom2_mut = mutation(potom2, p_current_mutation);
             Console.WriteLine("Потомок 2 после возможной мутации");
             print_counting_geno_one(potom2_mut);
@@ -353,7 +375,6 @@ public class Gen_algorith
 
             List<(int, List<Gen>)> best_variant =
             [   (feno_parent_1, parent_1),
-                (feno_parent_2, parent_2),
                 (feno_first, potom1_mut),
                 (feno_second, potom2_mut)
             ];
@@ -366,20 +387,20 @@ public class Gen_algorith
                 case 0:
                     Console.WriteLine("В следующее поколение переходит левый родитель");
                     return parent_1;
-                case 2:
+                case 1:
                     {
                         Console.WriteLine("В следующее поколение переходит 1й потомок");
                         return potom1_mut;
                     }
-                case 3:
+                //case 2:
+                //    {
+                //        Console.WriteLine("В следующее поколение переходит 2й потомок");
+                //        return potom2_mut;
+                //    }
+                default:
                     {
                         Console.WriteLine("В следующее поколение переходит 2й потомок");
                         return potom2_mut;
-                    }
-                default:
-                    {
-                        Console.WriteLine("В следующее поколение переходит правый родитель");
-                        return parent_1;
                     }
             }
         }
@@ -503,45 +524,42 @@ class lab6
 {
     public static void Main()
     {
-        //Console.OutputEncoding = Encoding.UTF8;
+        Console.OutputEncoding = Encoding.UTF8;
 
-        //Console.Write("Введите число процессоров N = ");
-        //int N = Convert.ToInt16(Console.ReadLine());
+        Console.Write("Введите число процессоров N = ");
+        int N = Convert.ToInt16(Console.ReadLine());
 
-        //Console.Write("\nВведите число задач M = ");
-        //int M = Convert.ToInt16(Console.ReadLine());
+        Console.Write("\nВведите число задач M = ");
+        int M = Convert.ToInt16(Console.ReadLine());
 
-        //Console.Write("\nВведите нижнюю границу T1 = ");
-        //int T1 = Convert.ToInt16(Console.ReadLine());
+        Console.Write("\nВведите нижнюю границу T1 = ");
+        int T1 = Convert.ToInt16(Console.ReadLine());
 
-        //Console.Write("\nВведите нижнюю границу T2 = ");
-        //int T2 = Convert.ToInt16(Console.ReadLine());
+        Console.Write("\nВведите нижнюю границу T2 = ");
+        int T2 = Convert.ToInt16(Console.ReadLine());
 
-        //Console.Write("\nВведите число особей N_chr = ");
-        //int N_chr = Convert.ToInt16(Console.ReadLine());
+        Console.Write("\nВведите число особей N_chr = ");
+        int N_chr = Convert.ToInt16(Console.ReadLine());
 
-        //Console.Write("\nВведите число повторений N_lim = ");
-        //int N_lim = Convert.ToInt16(Console.ReadLine());
+        Console.Write("\nВведите число повторений N_lim = ");
+        int N_lim = Convert.ToInt16(Console.ReadLine());
 
-        //Console.Write("\nВведите вероятность кроссинговера P_cross = ");
-        //double p_cross = Convert.ToDouble(Console.ReadLine());
+        Console.Write("\nВведите вероятность кроссинговера P_cross = ");
+        double p_cross = Convert.ToDouble(Console.ReadLine());
 
-        //Console.Write("\nВведите вероятность мутации P_mutation = ");
-        //double p_mutation = Convert.ToDouble(Console.ReadLine());
+        Console.Write("\nВведите вероятность мутации P_mutation = ");
+        double p_mutation = Convert.ToDouble(Console.ReadLine());
 
-        //Console.Write("\nВведите коэффициенты поколенческой стратегии = ");
-        //var tmp = new List<int>();
-        //foreach (var i in Console.ReadLine()!.Split(','))
-        //{
-        //    tmp.Add(Convert.ToInt32(i));
-        //}
-        //Console.WriteLine(tmp.GetType()
-        //    + " "
-        //    + string.Join(",", tmp));
+        Console.Write("\nВведите коэффициенты поколенческой стратегии = ");
+        var tmp = new List<int>();
+        foreach (var i in Console.ReadLine()!.Split(','))
+        {
+                tmp.Add(Convert.ToInt32(i));
+        }
 
-        var test = new Matrix(4, 11, 10, 20);
+        var test = new Matrix(N, M, T1, T2);
         test.print_matrix();
-        var test1 = new Gen_algorith(5, 10, 1, 1, test, new List<int>([1, 3, 5]));
+        var test1 = new Gen_algorith(N_chr, N_lim, p_cross, p_mutation, test, tmp);
         test1.main_algorithm();
 
     }
